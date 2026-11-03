@@ -144,6 +144,34 @@ it('mirrors only successful bindings, suppresses recording menus, and invalidate
   expect((await f.call<ShortcutSaveResult>(DESKTOP_IPC.shortcutsEdit, { type: 'reset-all' }, saved.snapshot.revision)).status).toBe('stale')
 })
 
+it('放行 macOS 原生全屏组合键，并在录制或更新蒙层期间抑制菜单', async () => {
+  const f = await fixture()
+  const open = updateOverlayFixture(f)
+  await f.call(DESKTOP_IPC.shortcutsGet, f.definitions)
+  const press = (type: 'keyDown' | 'keyUp') => {
+    const event = { defaultPrevented: false, preventDefault() { this.defaultPrevented = true } }
+    f.contents.emit('before-input-event', event, { type, code: 'KeyF', key: 'f', modifiers: ['control', 'meta'],
+      meta: true, control: true, alt: false, shift: false, isAutoRepeat: false, isComposing: false })
+    return event.defaultPrevented
+  }
+  f.contents.send.mockClear()
+  for (const type of ['keyDown', 'keyUp'] as const) {
+    expect(press(type)).toBe(false)
+    expect(f.contents.setIgnoreMenuShortcuts).toHaveBeenLastCalledWith(false)
+  }
+  await f.call(DESKTOP_IPC.shortcutsRecording, true)
+  expect(press('keyDown')).toBe(false)
+  expect(f.contents.setIgnoreMenuShortcuts).toHaveBeenLastCalledWith(true)
+  await f.call(DESKTOP_IPC.shortcutsRecording, false)
+  const overlay = open()
+  expect(press('keyDown')).toBe(true)
+  expect(press('keyUp')).toBe(true)
+  overlay.destroy()
+  expect(press('keyDown')).toBe(false)
+  expect(f.contents.setIgnoreMenuShortcuts).toHaveBeenLastCalledWith(false)
+  expect(f.contents.send).not.toHaveBeenCalled()
+})
+
 it('blocks macOS shortcuts while an update overlay loads and clears held and consumed keys before dismissal', async () => {
   const f = await fixture()
   const open = updateOverlayFixture(f)

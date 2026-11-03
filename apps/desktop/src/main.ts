@@ -1137,12 +1137,12 @@ async function main(): Promise<void> {
     copyright: '',
     iconPath: applicationIconPath,
   })
-  // A custom application menu replaces Electron's default menu, so macOS needs
-  // its standard menus and application hide commands declared explicitly.
+  // 自定义菜单取代 Electron 默认菜单；macOS 的全屏命令、标准菜单和隐藏命令需显式声明。
   // Keep app.name stable: Electron derives its default userData directory from it.
   const darwin = process.platform === 'darwin'
   const platformMenus = (): MenuItemConstructorOptions[] => darwin
-    ? [shortcuts.fileMenu(currentDesktopLocale().messages), { role: 'editMenu' }, { role: 'windowMenu' }]
+    ? [shortcuts.fileMenu(currentDesktopLocale().messages), { role: 'editMenu' },
+      { role: 'viewMenu', submenu: [{ role: 'togglefullscreen' }] }, { role: 'windowMenu' }]
     : [{ role: 'editMenu' }]
   const hideCommands: MenuItemConstructorOptions[] = darwin
     ? [{ role: 'hide', label: currentDesktopLocale().messages.hideApplication },

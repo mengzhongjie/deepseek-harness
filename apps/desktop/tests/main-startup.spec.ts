@@ -1339,12 +1339,15 @@ describe('desktop main startup', () => {
       .find(items => items.some(item => item.role === 'editMenu'))
     if (template === undefined) throw new Error('application menu missing')
     expect(template.map(describeItem)).toEqual(platform === 'darwin'
-      ? ['Desktop test', en.fileMenu, 'editMenu', 'windowMenu']
+      ? ['Desktop test', en.fileMenu, 'editMenu', 'viewMenu', 'windowMenu']
       : ['Application', 'editMenu'])
     const application = template[0]!.submenu as MenuItemConstructorOptions[]
     expect(application.filter(item => item.visible !== false).map(describeItem)).toEqual(platform === 'darwin'
       ? ['about', 'separator', en.checkUpdatesMenu, en.cliCommandMenu, 'separator', 'toggleDevTools', 'separator', 'hide', 'hideOthers', 'unhide', 'separator', 'quit']
       : ['about', 'separator', en.checkUpdatesMenu, 'separator', 'toggleDevTools', 'separator', 'quit'])
+    const viewMenu = template.find(item => item.role === 'viewMenu')
+    if (platform === 'darwin') expect(viewMenu?.submenu).toEqual([{ role: 'togglefullscreen' }])
+    else expect(viewMenu).toBeUndefined()
     expect(harness.menu.setApplicationMenu).toHaveBeenCalledOnce()
   })
 

@@ -75,6 +75,41 @@ it.each(['en', 'zh-CN'])('keeps ordinary diagnostics folded, text-only, and keyb
   expect(backdrop.classList.contains('visible')).toBe(false)
 })
 
+it.each(['checking', 'dismissed', 'result'] as const)(
+  'keeps a replacement result visible when the initial status arrives late: %s', async (initialState) => {
+    const p = page('update-dialog')
+    const locale = resolveDesktopLocale('zh-CN')
+    const checking: UpdateDialogView = { revision: 1, locale: locale.id, title: locale.messages.updateCheckTitle,
+      message: locale.messages.updateChecking, detail: '', buttons: [locale.messages.later], cancelId: 0,
+      closeLabel: locale.messages.updateClose, technicalDetails: '', technicalDetailsLabel: locale.messages.updateTechnicalDetails }
+    const result: UpdateDialogView = { ...checking, revision: 2, message: locale.messages.updateCurrent,
+      buttons: [locale.messages.updateAcknowledge] }
+    const initial = Promise.withResolvers<UpdateDialogView | null>()
+    const respond = vi.fn(async () => {})
+    const unsubscribe = vi.fn()
+    let publish!: (view: UpdateDialogView | null) => void
+    const api: UpdateDialogApi = { status: () => initial.promise, respond,
+      subscribe: (listener) => { publish = listener; return unsubscribe } }
+    Object.defineProperty(p.dom.window, 'dshUpdateDialog', { value: api })
+    p.run()
+    publish(checking)
+    publish(null)
+    expect(p.document.body.classList.contains('visible')).toBe(false)
+    publish(result)
+    initial.resolve(initialState === 'checking' ? checking : initialState === 'dismissed' ? null : result)
+    await initial.promise
+    expect(p.document.body.classList.contains('visible')).toBe(true)
+    expect(p.element('dialog').hidden).toBe(false)
+    expect(p.element('title').textContent).toBe(result.message)
+    expect(p.element('actions').textContent).toBe(locale.messages.updateAcknowledge)
+    p.element('actions').querySelector('button')!.click()
+    expect(respond).toHaveBeenCalledWith(result.revision, 0)
+    publish(null)
+    expect(p.document.body.classList.contains('visible')).toBe(false)
+    p.dom.window.dispatchEvent(new p.dom.window.Event('pagehide'))
+    expect(unsubscribe).toHaveBeenCalledOnce()
+  })
+
 it('keeps mandatory diagnostics expandable without clearing the block or authorizing installation', async () => {
   const p = page('mandatory-update')
   const locale = resolveDesktopLocale('zh-CN')

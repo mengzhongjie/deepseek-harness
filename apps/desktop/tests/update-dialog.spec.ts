@@ -145,6 +145,35 @@ it('releases keyboard blocking only after fade-out and retains it across replace
   expect(f.overlays.input(f.owner)).toEqual({ revision: 2, blocked: false })
 })
 
+it('keeps the latest result through repeated fast check cancellation and releases the final overlay', async () => {
+  vi.useFakeTimers()
+  const f = setup()
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const controller = new AbortController()
+    const checking = f.show(controller.signal, { message: '正在检查更新' })
+    controller.abort()
+    expect((await checking).response).toBe(1)
+    const message = attempt % 2 === 0 ? '已是最新版本' : '检查更新失败'
+    const result = f.show(undefined, { message })
+    await vi.advanceTimersByTimeAsync(150)
+    expect(fixture.views).toHaveLength(1)
+    expect(fixture.views[0]!.destroyed).toBe(false)
+    expect(f.invoke(UPDATE_DIALOG_IPC.status)).toMatchObject({ message })
+    expect(fixture.views[0]!.webContents.send).toHaveBeenLastCalledWith(
+      UPDATE_DIALOG_IPC.changed, expect.objectContaining({ message }))
+    expect(f.overlays.input(f.owner).blocked).toBe(true)
+    f.invoke(UPDATE_DIALOG_IPC.respond, 0)
+    expect((await result).response).toBe(0)
+    await vi.advanceTimersByTimeAsync(149)
+    expect(fixture.views[0]!.destroyed).toBe(false)
+  }
+  await vi.advanceTimersByTimeAsync(1)
+  expect(fixture.views[0]!.destroyed).toBe(true)
+  expect(f.parent.contentView.removeChildView).toHaveBeenCalledOnce()
+  expect(f.parent.webContents.listenerCount('before-input-event')).toBe(0)
+  expect(f.overlays.input(f.owner).blocked).toBe(false)
+})
+
 it('blocks owner input and restores dialog focus only when that owner is focused', async () => {
   const f = setup()
   f.parent.isFocused.mockReturnValue(false)
